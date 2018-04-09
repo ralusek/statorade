@@ -67,33 +67,26 @@ class StateMachine {
       // Exit current state.
       if (currentState) result.exit = currentState.exit({fromState, toState, eventPayload, changeStatePayload});
 
-      // We capture disable state change in this closure to keep a reference to this
-      // state, in order to prevent states from calling this behavior when not active.
-      const disableStateChange = () => {
-        if (p(this).activeStateName !== toState) throw new Error(`Attempted to disable state changes from "${toState}," but currently in "${p(this).activeStateName}." "${toState}" must be active state in order for it to disable state changes.`);
-        p(this).stateChangeDisabled = true;
-      };
-
-      // We capture enable state change in this closure to keep a reference to this
-      // state, in order to prevent states from calling this behavior when not active.
-      const enableStateChange = () => {
-        if (p(this).activeStateName !== toState) throw new Error(`Attempted to enable state changes from "${toState}," but currently in "${p(this).activeStateName}." "${toState}" must be active state in order for it to enable state changes.`);
-        p(this).stateChangeDisabled = false;
-      };
 
       p(this).activeStateName = toState;
-      result.enter = nextState.enter(
-        {fromState, toState, eventPayload, changeStatePayload},
-        {disableStateChange, enableStateChange}
-      );
+      result.enter = nextState.enter({fromState, toState, eventPayload, changeStatePayload});
 
       return result;
     };
 
+    // We capture this as a closure to keep a reference to this state, in order
+    // to prevent state changes to be enabled/disabled by a nonactive state.
+    const setCanStateChange = (value) => {
+      const action = value ? 'enable' : 'disable';
+      if (p(this).activeStateName !== stateName) throw new Error(`Attempted to ${action} state changes from "${stateName}," but currently in "${p(this).activeStateName}." "${stateName}" must be active state in order for it to disable state changes.`);
+      p(this).stateChangeDisabled = !value;
+    }
+
     const state = new State({
       ...config,
       stateName,
-      requestStateChange
+      requestStateChange,
+      setCanStateChange
     });
 
     p(this).states[stateName] = state;

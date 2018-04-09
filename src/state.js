@@ -20,7 +20,8 @@ class State {
     privateHandlers = {}, // Event handlers which may only be triggered from the state's onEnter function.
 
     // State machine provided props:
-    requestStateChange
+    requestStateChange,
+    setCanStateChange
   } = {}) {
     p(this).stateName = stateName;
 
@@ -30,20 +31,16 @@ class State {
     p(this).handlers = formatHandlers(this, publicHandlers, privateHandlers);
     
     p(this).requestStateChange = requestStateChange;
+    p(this).setCanStateChange = setCanStateChange;
   }
 
-  enter(
-    {fromState, toState, eventPayload, changeStatePayload},
-    {disableStateChange, enableStateChange}
-  ) {
-    const handlePrivate = (eventName, eventPayload) => this.handle(eventName, eventPayload, true);
-
+  enter({fromState, toState, eventPayload, changeStatePayload}) {
     return p(this).onEnter(
       {fromState, toState, eventPayload, changeStatePayload},
       {
-        disableStateChange,
-        enableStateChange,
-        handlePrivate
+        disableStateChange: () => p(this).setCanStateChange(false),
+        enableStateChange: () => p(this).setCanStateChange(true),
+        handlePrivate: (eventName, eventPayload) => this.handle(eventName, eventPayload, true)
       }
     );
   }
@@ -71,7 +68,14 @@ class State {
         meta.toState = stateName;
       }
 
-      meta.handlerResult = handler.fn(changeState, {eventPayload});
+      meta.handlerResult = handler.fn(
+        changeState,
+        {eventPayload},
+        {
+          disableStateChange: () => p(this).setCanStateChange(false),
+          enableStateChange: () => p(this).setCanStateChange(true)
+        }
+      );
     }
 
     return meta;
