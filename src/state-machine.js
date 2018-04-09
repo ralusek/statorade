@@ -1,3 +1,5 @@
+const EventEmitter = require('events');
+
 const State = require('./state');
 
 const BOOT = '_boot';
@@ -22,7 +24,7 @@ class StateMachine {
 
     p(this).stateChangeDisabled = false;
 
-    
+    p(this).emitter = new EventEmitter();
   }
 
   init(stateName) {
@@ -41,7 +43,16 @@ class StateMachine {
   handle(eventName, eventPayload) {
     if (!p(this).activeStateName) throw new Error(`Unable to handle "${eventName}," no state machine has not yet been initialized.`);
 
-    return p(this).states[p(this).activeStateName].handle(eventName, eventPayload);
+    const result = p(this).states[p(this).activeStateName].handle(eventName, eventPayload);
+
+    // If state change occurred, emit event.
+    if (result.changeStateResult) p(this).emitter.emit('stateChange', result);
+
+    return result;
+  }
+
+  onStateChange(callback) {
+    p(this).emitter.on('stateChange', callback);
   }
 
   addState(stateName, config = {}) {

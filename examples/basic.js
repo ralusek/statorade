@@ -1,7 +1,10 @@
-const Statorade = require('../lib');
+const Statorade = require('../src');
 
 
 const trafficLight = new Statorade();
+
+// Add a logger so we can see some info about the state changes.
+trafficLight.onStateChange((info) => console.log('State Change occured!', info));
 
 
 // Define the states.
