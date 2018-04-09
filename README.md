@@ -1,4 +1,4 @@
-#Statorade
+# Statorade
 
 Statorade is an event-driven state machine with many protections in place to
 prevent you from shooting yourself in the foot, with very helpful and descriptive
