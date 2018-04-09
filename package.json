@@ -1,0 +1,30 @@
+{
+  "name": "statorade",
+  "version": "0.0.1",
+  "description": "Event-driven state machine.",
+  "main": "lib/index.js",
+  "repository": {
+    "url": "https://github.com/ralusek/statorade",
+    "type": "git"
+  },
+  "keywords": [
+    "fsm",
+    "state machine",
+    "state",
+    "finite state machine",
+    "hsm",
+    "hierarchical state machine",
+    "event driven"
+  ],
+  "scripts": {
+    "compile": "babel --presets es2015,stage-0 -d lib/ src/",
+    "prepublish": "npm run compile"
+  },
+  "author": "Tomas Savigliano",
+  "license": "MIT",
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-preset-es2015": "^6.24.1",
+    "babel-preset-stage-0": "^6.24.1"
+  }
+}
