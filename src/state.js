@@ -28,7 +28,7 @@ class State {
     p(this).onEnter = onEnter;
     p(this).onExit = onExit;
 
-    p(this).handlers = formatHandlers(this, publicHandlers, privateHandlers);
+    p(this).handlers = _formatHandlers(this, publicHandlers, privateHandlers);
     
     p(this).requestStateChange = requestStateChange;
     p(this).setCanStateChange = setCanStateChange;
@@ -89,7 +89,7 @@ class State {
 /**
  *
  */
-function formatHandlers(state, publicHandlers, privateHandlers) {
+function _formatHandlers(state, publicHandlers, privateHandlers) {
   const formatted = {};
 
   [publicHandlers, privateHandlers].forEach((handlers, i) => {
