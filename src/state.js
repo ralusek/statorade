@@ -55,7 +55,7 @@ class State {
     const handler = p(this).handlers[eventName];
 
     if (meta.hasHandler = !!handler) {
-      if (handler.isPrivate && !internalCall) throw new Error(`State "${p(this).stateName}" attempted to handle "${eventName}" externally. This event is registered to a privateHandler, and can only be triggered from within a state\'s onEnter function.`);
+      if (handler.isPrivate && !internalCall) throw new Error(`State "${p(this).stateName}" attempted to handle "${eventName}" externally. This event is registered to a privateHandler, and can only be triggered from within a state\'s onEnter function, or its own handlers.`);
       meta.isPrivate = handler.isPrivate;
 
       const changeState = (stateName, changeStatePayload) => {
@@ -72,6 +72,7 @@ class State {
         changeState,
         {eventPayload},
         {
+          handlePrivate: (eventName, eventPayload) => this.handle(eventName, eventPayload, true),
           disableStateChange: () => p(this).setCanStateChange(false),
           enableStateChange: () => p(this).setCanStateChange(true)
         }
