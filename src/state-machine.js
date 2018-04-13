@@ -82,32 +82,6 @@ class StateMachine {
     if (!stateName) throw new Error(`Cannot add state, no stateName provided.`);
     if (p(this).states[stateName]) throw new Error(`Cannot add state "${stateName}" to state machine, a state with that name already exists.`);
 
-    // We capture the request state change in a closure to keep a reference to this
-    // state, in order to prevent state changes being requested from states when
-    // they are not active in the state machine.
-    const requestStateChange = ({toState, eventPayload, changeStatePayload}) => {
-      const activeStateName = _readActiveStateName(this);
-      if (toState === BOOT) throw new Error(`Cannot change state to the boot state. "${BOOT}" is a reserved state name.`);
-      const fromState = stateName;
-
-      if (p(this).stateChangeDisabled) throw new Error(`Cannot change state from "${fromState}" to "${toState}," state changes currently disabled.`);
-      if (activeStateName !== fromState) throw new Error(`Cannot change state from "${fromState}" to "${toState}," currently in "${activeStateName}."`);
-
-      const nextState = p(this).states[toState];
-      if (!nextState) throw new Error(`Cannot change state from "${fromState}" to "${toState}," "${toState}" is not a defined state.`);
-      
-      const result = {};
-
-      const currentState = p(this).states[activeStateName];
-      // Exit current state.
-      if (currentState) result.exit = currentState.exit({fromState, toState, eventPayload, changeStatePayload});
-
-
-      _writeActiveStateName(this, toState);
-      result.enter = nextState.enter({fromState, toState, eventPayload, changeStatePayload});
-
-      return result;
-    };
 
     // We capture this as a closure to keep a reference to this state, in order
     // to prevent state changes to be enabled/disabled by a nonactive state.
@@ -121,7 +95,7 @@ class StateMachine {
     const state = new State({
       ...config,
       stateName,
-      requestStateChange,
+      requestStateChange: _generateRequestStateChange(this, stateName),
       setCanStateChange
     });
 
@@ -131,6 +105,46 @@ class StateMachine {
 
 
 // Private Functions.
+
+
+/**
+ * Generates error messages for various invalid state change conditions.
+ */
+function _validateStateChange(sm, {activeStateName, toStateName, fromStateName, nextState}) {
+  if (toStateName === BOOT) return `Cannot change state to the boot state. "${BOOT}" is a reserved state name.`;
+      
+  if (p(this).stateChangeDisabled) return `Cannot change state from "${fromStateName}" to "${toStateName}," state changes currently disabled.`;
+  if (activeStateName !== fromStateName) return `Cannot change state from "${fromStateName}" to "${toStateName}," currently in "${activeStateName}."`;
+
+  if (!nextState) return `Cannot change state from "${fromStateName}" to "${toStateName}," "${toStateName}" is not a defined state.`;
+}
+
+
+/**
+ * Generate a requestStateChange in a closure, enclosing stateName for validation.
+ */
+function _generateRequestStateChange(sm, stateName) {
+  return ({toStateName, eventPayload, changeStatePayload}) => {
+    const activeStateName = _readActiveStateName(sm);
+    const fromStateName = stateName;
+    const nextState = p(sm).states[toStateName];
+
+    const validationErrorMessage = _validateStateChange(sm, {activeStateName, toStateName, fromStateName, nextState});
+    if (validationErrorMessage) throw new Error(validationErrorMessage);
+    
+    const result = {};
+
+    const currentState = p(sm).states[activeStateName];
+    // Exit current state.
+    if (currentState) result.exit = currentState.exit({fromStateName, toStateName, eventPayload, changeStatePayload});
+
+
+    _writeActiveStateName(sm, toStateName);
+    result.enter = nextState.enter({fromStateName, toStateName, eventPayload, changeStatePayload});
+
+    return result;
+  };
+}
 
 
 /**

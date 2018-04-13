@@ -34,9 +34,9 @@ class State {
     p(this).setCanStateChange = setCanStateChange;
   }
 
-  enter({fromState, toState, eventPayload, changeStatePayload}) {
+  enter({fromStateName, toStateName, eventPayload, changeStatePayload}) {
     return p(this).onEnter(
-      {fromState, toState, eventPayload, changeStatePayload},
+      {fromStateName, toStateName, eventPayload, changeStatePayload},
       {
         disableStateChange: () => p(this).setCanStateChange(false),
         enableStateChange: () => p(this).setCanStateChange(true),
@@ -45,12 +45,12 @@ class State {
     );
   }
 
-  exit({fromState, toState, eventPayload, changeStatePayload}) {
-    return p(this).onExit({fromState, toState, eventPayload, changeStatePayload});
+  exit({fromStateName, toStateName, eventPayload, changeStatePayload}) {
+    return p(this).onExit({fromStateName, toStateName, eventPayload, changeStatePayload});
   }
 
   handle(eventName, eventPayload, internalCall = false) {
-    const meta = {fromState: p(this).stateName}; // Collection of useful data to output as response.
+    const meta = {fromStateName: p(this).stateName}; // Collection of useful data to output as response.
 
     const handler = p(this).handlers[eventName];
 
@@ -60,12 +60,12 @@ class State {
 
       const changeState = (stateName, changeStatePayload) => {
         meta.changeStateResult = p(this).requestStateChange({
-          toState: stateName,
+          toStateName: stateName,
           eventPayload,
           changeStatePayload
         });
 
-        meta.toState = stateName;
+        meta.toStateName = stateName;
       }
 
       meta.handlerResult = handler.fn(
