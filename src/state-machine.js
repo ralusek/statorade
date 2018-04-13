@@ -113,7 +113,7 @@ class StateMachine {
 function _validateStateChange(sm, {activeStateName, toStateName, fromStateName, nextState}) {
   if (toStateName === BOOT) return `Cannot change state to the boot state. "${BOOT}" is a reserved state name.`;
       
-  if (p(this).stateChangeDisabled) return `Cannot change state from "${fromStateName}" to "${toStateName}," state changes currently disabled.`;
+  if (p(sm).stateChangeDisabled) return `Cannot change state from "${fromStateName}" to "${toStateName}," state changes currently disabled.`;
   if (activeStateName !== fromStateName) return `Cannot change state from "${fromStateName}" to "${toStateName}," currently in "${activeStateName}."`;
 
   if (!nextState) return `Cannot change state from "${fromStateName}" to "${toStateName}," "${toStateName}" is not a defined state.`;
