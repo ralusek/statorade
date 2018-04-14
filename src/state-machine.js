@@ -27,12 +27,15 @@ class StateMachine {
   } = {}) {
     p(this).states = {};
 
-    p(this).stateChangeDisabled = false;
-
     p(this).emitter = new EventEmitter();
 
     p(this).writeActiveStateName = writeActiveStateName;
     p(this).readActiveStateName = readActiveStateName;
+
+
+    p(this).stateChangeCount = 0;
+
+    p(this).pendingEventDispatch = [];
   }
 
   /**
@@ -57,15 +60,11 @@ class StateMachine {
    * event handlers.
    */
   handle(eventName, eventPayload) {
-    const activeStateName = _readActiveStateName(this);
-    if (!activeStateName) throw new Error(`Unable to handle "${eventName}," state machine has not yet been initialized.`);
-
-    const result = p(this).states[activeStateName].handle(eventName, eventPayload);
-
-    // If state change occurred, emit event.
-    if (result.changeStateResult) p(this).emitter.emit('stateChange', result);
-
-    return result;
+    return _queueEventDispatch(this, {
+      eventName,
+      eventPayload,
+      isPrivate: false
+    });
   }
 
   /**
@@ -83,20 +82,12 @@ class StateMachine {
     if (p(this).states[stateName]) throw new Error(`Cannot add state "${stateName}" to state machine, a state with that name already exists.`);
 
 
-    // We capture this as a closure to keep a reference to this state, in order
-    // to prevent state changes to be enabled/disabled by a nonactive state.
-    const setCanStateChange = (value) => {
-      const action = value ? 'enable' : 'disable';
-      const activeStateName = _readActiveStateName(this);
-      if (activeStateName !== stateName) throw new Error(`Attempted to ${action} state changes from "${stateName}," but currently in "${activeStateName}." "${stateName}" must be active state in order for it to disable state changes.`);
-      p(this).stateChangeDisabled = !value;
-    }
-
     const state = new State({
       ...config,
       stateName,
-      requestStateChange: _generateRequestStateChange(this, stateName),
-      setCanStateChange
+      attemptStateChange: (...args) => _handleStateChangeAttempt(this, ...args),
+      attemptStateChangeAvailabilityToggle: (...args) => _handleStateChangeAvailabilityToggle(this, ...args),
+      attemptEventDispatch: (...args) => _handleEvent(this, ...args)
     });
 
     p(this).states[stateName] = state;
@@ -117,6 +108,65 @@ function _validateStateChange(sm, {activeStateName, toStateName, fromStateName, 
   if (activeStateName !== fromStateName) return `Cannot change state from "${fromStateName}" to "${toStateName}," currently in "${activeStateName}."`;
 
   if (!nextState) return `Cannot change state from "${fromStateName}" to "${toStateName}," "${toStateName}" is not a defined state.`;
+}
+
+function _queueEventDispatch(sm, {eventName, eventPayload, isPrivate}) {
+  p(sm).pendingEventDispatch.push({
+    eventName,
+    eventPayload,
+    isPrivate,
+    currentStateChangeCount: p(this).stateChangeCount
+  });
+
+  return _handleNextEvent(sm);
+}
+
+function _handleNextEvent(sm) {
+  const nextEvent = p(sm).pendingEventDispatch.shift();
+
+  const activeStateName = _readActiveStateName(sm);
+  if (!activeStateName) throw new Error(`Unable to handle "${next.eventName}," state machine has not yet been initialized.`);
+
+  const currentStateChangeCount = p(sm).stateChangeCount;
+  if (nextEvent.currentStateChangeCount > ) currentStateChangeCount throw new Error(`Unable to handle "${nextEvent.eventName}," event was dispatched in a previous state.`);
+
+  const handler = p(this).states[activeStateName].getHandler(eventName);
+
+  const result = p(this).states[activeStateName].handle(eventName, eventPayload, nextEvent.isPrivate);
+
+  // If state change occurred, emit event.
+  if (result.changeStateResult) p(this).emitter.emit('stateChange', result);
+
+  return result;
+}
+
+
+function _handleStateChangeAttempt(sm, {toStateName, eventPayload, changeStatePayload}) {
+  const activeStateName = _readActiveStateName(sm);
+  const fromStateName = stateName;
+  const nextState = p(sm).states[toStateName];
+
+  const validationErrorMessage = _validateStateChange(sm, {activeStateName, toStateName, fromStateName, nextState});
+  if (validationErrorMessage) throw new Error(validationErrorMessage);
+  
+  const result = {};
+
+  const currentState = p(sm).states[activeStateName];
+  // Exit current state.
+  if (currentState) result.exit = currentState.exit({fromStateName, toStateName, eventPayload, changeStatePayload});
+
+  const currentStateChangeCount = p(sm).stateChangeCount;
+
+  _writeActiveStateName(sm, toStateName);
+  result.enter = nextState.enter({fromStateName, toStateName, eventPayload, changeStatePayload}, {
+    handlePrivate: (eventName, eventPayload) => _queueEventDispatch(sm, {eventName, eventPayload, isPrivate: true}) 
+  });
+
+  return result;
+}
+
+function _handleStateChangeAvailabilityToggleAttempt() {
+
 }
 
 

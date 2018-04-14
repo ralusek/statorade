@@ -20,8 +20,7 @@ class State {
     privateHandlers = {}, // Event handlers which may only be triggered from the state's onEnter function.
 
     // State machine provided props:
-    requestStateChange,
-    setCanStateChange
+    requestStateChange
   } = {}) {
     p(this).stateName = stateName;
 
@@ -31,23 +30,27 @@ class State {
     p(this).handlers = _formatHandlers(this, publicHandlers, privateHandlers);
     
     p(this).requestStateChange = requestStateChange;
-    p(this).setCanStateChange = setCanStateChange;
+
   }
 
-  enter({fromStateName, toStateName, eventPayload, changeStatePayload}) {
+  enter(
+    {fromStateName, toStateName, eventPayload, changeStatePayload},
+    {handlePrivate}
+  ) {
     return p(this).onEnter(
       {fromStateName, toStateName, eventPayload, changeStatePayload},
-      {
-        disableStateChange: () => p(this).setCanStateChange(false),
-        enableStateChange: () => p(this).setCanStateChange(true),
-        handlePrivate: (eventName, eventPayload) => this.handle(eventName, eventPayload, true)
-      }
+      {handlePrivate}
     );
   }
 
   exit({fromStateName, toStateName, eventPayload, changeStatePayload}) {
     return p(this).onExit({fromStateName, toStateName, eventPayload, changeStatePayload});
   }
+
+  getHandler(eventName) {
+    return p(this).handlers[eventName];
+  }
+
 
   handle(eventName, eventPayload, internalCall = false) {
     const meta = {fromStateName: p(this).stateName}; // Collection of useful data to output as response.
