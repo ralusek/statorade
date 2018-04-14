@@ -21,7 +21,8 @@ class State {
 
     // State machine provided props:
     requestStateChange,
-    setCanStateChange
+    setCanStateChange,
+    handlePrivateEvent
   } = {}) {
     p(this).stateName = stateName;
 
@@ -32,6 +33,7 @@ class State {
     
     p(this).requestStateChange = requestStateChange;
     p(this).setCanStateChange = setCanStateChange;
+    p(this).handlePrivateEvent = handlePrivateEvent;
   }
 
   enter({fromStateName, toStateName, eventPayload, changeStatePayload}) {
@@ -40,7 +42,7 @@ class State {
       {
         disableStateChange: () => p(this).setCanStateChange(false),
         enableStateChange: () => p(this).setCanStateChange(true),
-        handlePrivate: (eventName, eventPayload) => this.handle(eventName, eventPayload, true)
+        handlePrivate: (eventName, eventPayload) => p(this).handlePrivateEvent(eventName, eventPayload)
       }
     );
   }
@@ -72,7 +74,7 @@ class State {
         changeState,
         {eventPayload},
         {
-          handlePrivate: (eventName, eventPayload) => this.handle(eventName, eventPayload, true),
+          handlePrivate: (eventName, eventPayload) => p(this).handlePrivateEvent(eventName, eventPayload),
           disableStateChange: () => p(this).setCanStateChange(false),
           enableStateChange: () => p(this).setCanStateChange(true)
         }

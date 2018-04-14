@@ -57,15 +57,7 @@ class StateMachine {
    * event handlers.
    */
   handle(eventName, eventPayload) {
-    const activeStateName = _readActiveStateName(this);
-    if (!activeStateName) throw new Error(`Unable to handle "${eventName}," state machine has not yet been initialized.`);
-
-    const result = p(this).states[activeStateName].handle(eventName, eventPayload);
-
-    // If state change occurred, emit event.
-    if (result.changeStateResult) p(this).emitter.emit('stateChange', result);
-
-    return result;
+    return _handleEvent(this, eventName, eventPayload);
   }
 
   /**
@@ -96,6 +88,7 @@ class StateMachine {
       ...config,
       stateName,
       requestStateChange: _generateRequestStateChange(this, stateName),
+      handlePrivateEvent: (eventName, eventPayload) => _handleEvent(this, eventName, eventPayload, true),
       setCanStateChange
     });
 
@@ -105,6 +98,19 @@ class StateMachine {
 
 
 // Private Functions.
+
+
+function _handleEvent(sm, eventName, eventPayload, isPrivate) {
+  const activeStateName = _readActiveStateName(sm);
+  if (!activeStateName) throw new Error(`Unable to handle "${eventName}," state machine has not yet been initialized.`);
+
+  const result = p(sm).states[activeStateName].handle(eventName, eventPayload, isPrivate);
+
+  // If state change occurred, emit event.
+  if (result.changeStateResult) p(sm).emitter.emit('stateChange', result);
+
+  return result;
+}
 
 
 /**
