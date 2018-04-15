@@ -50,40 +50,6 @@ class State {
   getHandler(eventName) {
     return p(this).handlers[eventName];
   }
-
-
-  handle(eventName, eventPayload, internalCall = false) {
-    const meta = {fromStateName: p(this).stateName}; // Collection of useful data to output as response.
-
-    const handler = p(this).handlers[eventName];
-
-    if (meta.hasHandler = !!handler) {
-      if (handler.isPrivate && !internalCall) throw new Error(`State "${p(this).stateName}" attempted to handle "${eventName}" externally. This event is registered to a privateHandler, and can only be triggered from within a state\'s onEnter function, or its own handlers.`);
-      meta.isPrivate = handler.isPrivate;
-
-      const changeState = (stateName, changeStatePayload) => {
-        meta.changeStateResult = p(this).requestStateChange({
-          toStateName: stateName,
-          eventPayload,
-          changeStatePayload
-        });
-
-        meta.toStateName = stateName;
-      }
-
-      meta.handlerResult = handler.fn(
-        changeState,
-        {eventPayload},
-        {
-          handlePrivate: (eventName, eventPayload) => this.handle(eventName, eventPayload, true),
-          disableStateChange: () => p(this).setCanStateChange(false),
-          enableStateChange: () => p(this).setCanStateChange(true)
-        }
-      );
-    }
-
-    return meta;
-  }
 }
 
 

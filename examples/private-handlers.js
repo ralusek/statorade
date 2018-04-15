@@ -13,7 +13,7 @@ trafficLight.addState('greenLight', {
   // Entry point for 'greenLight' state.
   onEnter: () => console.log('Entered greenLight.'),
   // Events the 'greenLight' state will react to.
-  handlers: {
+  privateHandlers: {
     REQUEST_TURN_YELLOW: (changeState) => changeState('yellowLight')
   }
 });
@@ -22,16 +22,20 @@ trafficLight.addState('yellowLight', {
   // Entry point for 'yellowLight' state.
   onEnter: () => console.log('Entered yellowLight.'),
   // Events the 'yellowLight' state will react to.
-  handlers: {
+  privateHandlers: {
     REQUEST_TURN_RED: (changeState) => changeState('redLight')
   }
 });
 
 trafficLight.addState('redLight', {
   // Entry point for 'redLight' state.
-  onEnter: () => console.log('Entered redLight.'),
+  onEnter: ({}, {handlePrivate}) => {
+    console.log('Entered redLight.');
+
+    handlePrivate('REQUEST_TURN_GREEN');
+  },
   // Events the 'redLight' state will react to.
-  handlers: {
+  privateHandlers: {
     REQUEST_TURN_GREEN: (changeState) => changeState('greenLight')
   }
 });
@@ -41,7 +45,3 @@ trafficLight.addState('redLight', {
 trafficLight.init('redLight')
 .catch(err => console.log(err.stack));
 
-
-// Fire an event.
-trafficLight.handle('REQUEST_TURN_GREEN')
-.catch(err => console.log(err.stack));

@@ -35,7 +35,7 @@ class StateMachine {
 
     p(this).stateChangeCount = 0;
 
-    p(this).pendingEventDispatch = [];
+    p(this).pendingDispatchEventMeta = [];
   }
 
   /**
@@ -61,9 +61,11 @@ class StateMachine {
    */
   handle(eventName, eventPayload) {
     return _queueEventDispatch(this, {
+      activeStateName: _readActiveStateName(this),
       eventName,
       eventPayload,
-      isPrivate: false
+      isPrivate: false,
+      stateChangeCountSnapshot: p(this).stateChangeCount
     });
   }
 
@@ -84,10 +86,7 @@ class StateMachine {
 
     const state = new State({
       ...config,
-      stateName,
-      attemptStateChange: (...args) => _handleStateChangeAttempt(this, ...args),
-      attemptStateChangeAvailabilityToggle: (...args) => _handleStateChangeAvailabilityToggle(this, ...args),
-      attemptEventDispatch: (...args) => _handleEvent(this, ...args)
+      stateName
     });
 
     p(this).states[stateName] = state;
@@ -98,102 +97,151 @@ class StateMachine {
 // Private Functions.
 
 
-/**
- * Generates error messages for various invalid state change conditions.
- */
-function _validateStateChange(sm, {activeStateName, toStateName, fromStateName, nextState}) {
-  if (toStateName === BOOT) return `Cannot change state to the boot state. "${BOOT}" is a reserved state name.`;
-      
-  if (p(sm).stateChangeDisabled) return `Cannot change state from "${fromStateName}" to "${toStateName}," state changes currently disabled.`;
-  if (activeStateName !== fromStateName) return `Cannot change state from "${fromStateName}" to "${toStateName}," currently in "${activeStateName}."`;
 
-  if (!nextState) return `Cannot change state from "${fromStateName}" to "${toStateName}," "${toStateName}" is not a defined state.`;
-}
+function _queueEventDispatch(sm, {activeStateName, eventName, eventPayload, isPrivate, stateChangeCountSnapshot}) {
+  if (!activeStateName) return Promise.reject(new Error(`Unable to queue event for dispatch, no active state to handle it.`));
 
-function _queueEventDispatch(sm, {eventName, eventPayload, isPrivate}) {
-  p(sm).pendingEventDispatch.push({
+  p(sm).pendingDispatchEventMeta.push({
+    activeStateName,
     eventName,
     eventPayload,
     isPrivate,
-    currentStateChangeCount: p(this).stateChangeCount
+    stateChangeCountSnapshot
   });
 
   return _handleNextEvent(sm);
 }
 
-function _handleNextEvent(sm) {
-  const nextEvent = p(sm).pendingEventDispatch.shift();
-
+function _validateEventHandling(sm, eventMeta, handler) {
   const activeStateName = _readActiveStateName(sm);
-  if (!activeStateName) throw new Error(`Unable to handle "${next.eventName}," state machine has not yet been initialized.`);
+  if (!activeStateName) throw new Error(`Unable to handle "${eventMeta.eventName}," state machine has not yet been initialized.`);
+
+  if (handler.isPrivate && !eventMeta.isPrivate) throw new Error(`Unable to handle "${eventMeta.eventName}," the handler defined for this event in "${activeStateName}" is private. This means that it can only be called from a "handlePrivate function passed into the state's own methods.`);
 
   const currentStateChangeCount = p(sm).stateChangeCount;
-  if (nextEvent.currentStateChangeCount > ) currentStateChangeCount throw new Error(`Unable to handle "${nextEvent.eventName}," event was dispatched in a previous state.`);
+  const stateChangesSinceDispatch = currentStateChangeCount - eventMeta.stateChangeCountSnapshot;
+  if (stateChangesSinceDispatch) {
+    throw new Error(`Unable to handle "${eventMeta.eventName}," ${stateChangesSinceDispatch} state changes have occurred since this was dispatched.`);
+  }
 
-  const handler = p(this).states[activeStateName].getHandler(eventName);
+  // Should not logically be possible, likely redundant.
+  if (activeStateName !== eventMeta.activeStateName) throw new Error(`Unable to handle "${eventMeta.eventName}," event was fired while in "${eventMeta.activeStateName}," currently in "${activeStateName}."`);
+}
 
-  const result = p(this).states[activeStateName].handle(eventName, eventPayload, nextEvent.isPrivate);
+function _handleNextEvent(sm) {
+  const meta = {};
 
-  // If state change occurred, emit event.
-  if (result.changeStateResult) p(this).emitter.emit('stateChange', result);
+  // Although we do not await any asynchronous behavior, we wrap this in a promise
+  // so that it will execute on next tick. This ensures that any events dispatched
+  // within the handler or state change will not be dealt with until any synchronous
+  // state changes or other synchronous event behaviors are finished.
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      const eventMeta = p(sm).pendingDispatchEventMeta.shift();
 
-  return result;
+      console.log('Handling next event:', eventMeta);
+
+      const stateChangeCountSnapshot = p(sm).stateChangeCount;
+
+      const handler = p(sm).states[eventMeta.activeStateName].getHandler(eventMeta.eventName);
+      if (meta.hasHandler = !!handler) {
+        meta.isPrivate = handler.isPrivate;
+
+        _validateEventHandling(sm, eventMeta, handler);
+
+        const changeStateClosure = (toStateName, changeStatePayload) => {
+          meta.changeStateResult = _handleChangeState(sm, {toStateName, changeStatePayload}, eventMeta);
+        }
+
+        meta.handlerResult = handler.fn(
+          changeStateClosure,
+          {eventPayload: eventMeta.eventPayload},
+          {
+            handlePrivate: (eventName, eventPayload) => _queueEventDispatch(sm, {
+              activeStateName: eventMeta.activeStateName,
+              eventName,
+              eventPayload,
+              isPrivate: true,
+              stateChangeCountSnapshot
+            })
+          }
+        );
+      }
+
+      resolve(meta);
+    });
+  })
+  .then((meta) => {
+    // If state change occurred, emit event.
+    if (meta.changeStateResult) p(sm).emitter.emit('stateChange', meta);
+    return meta;
+  });
+}
+
+/**
+ * Generates error messages for various invalid state change conditions.
+ */
+function _validateStateChange(sm, {activeStateName, toStateName, fromStateName, nextState}, eventMeta) {
+  if (toStateName === BOOT) return `Cannot change state to the boot state. "${BOOT}" is a reserved state name.`;
+  
+  const currentStateChangeCount = p(sm).stateChangeCount;
+  const stateChangesSinceDispatch = currentStateChangeCount - eventMeta.stateChangeCountSnapshot;
+  if (stateChangesSinceDispatch) {
+    throw new Error(`Unable to change state from "${fromStateName}" to "${toStateName}," ${stateChangesSinceDispatch} state changes have occurred since the enclosing event handler was dispatched.`);
+  }
+
+  // Should not logically be possible, likely redundant.
+  if (activeStateName !== fromStateName) return `Cannot change state from "${fromStateName}" to "${toStateName}," currently in "${activeStateName}."`;
+
+  if (!nextState) return `Cannot change state from "${fromStateName}" to "${toStateName}," "${toStateName}" is not a defined state.`;
 }
 
 
-function _handleStateChangeAttempt(sm, {toStateName, eventPayload, changeStatePayload}) {
+function _handleChangeState(sm, {toStateName, changeStatePayload}, eventMeta) {
+  const fromStateName = eventMeta.activeStateName;
   const activeStateName = _readActiveStateName(sm);
-  const fromStateName = stateName;
   const nextState = p(sm).states[toStateName];
 
-  const validationErrorMessage = _validateStateChange(sm, {activeStateName, toStateName, fromStateName, nextState});
+  const validationErrorMessage = _validateStateChange(sm, {activeStateName, toStateName, fromStateName, nextState}, eventMeta);
   if (validationErrorMessage) throw new Error(validationErrorMessage);
-  
-  const result = {};
+
+  const result = {fromStateName, toStateName};
 
   const currentState = p(sm).states[activeStateName];
-  // Exit current state.
-  if (currentState) result.exit = currentState.exit({fromStateName, toStateName, eventPayload, changeStatePayload});
 
-  const currentStateChangeCount = p(sm).stateChangeCount;
+  // We increment the state change count to prevent any delayed state changes or event dispatches from being
+  // handled.
+  const newStateChangeCount = ++p(sm).stateChangeCount;
+
+
+  // Exit current state.
+  if (currentState) result.exit = currentState.exit({
+    fromStateName,
+    toStateName,
+    eventPayload: eventMeta.eventPayload,
+    changeStatePayload
+  });
+
 
   _writeActiveStateName(sm, toStateName);
-  result.enter = nextState.enter({fromStateName, toStateName, eventPayload, changeStatePayload}, {
-    handlePrivate: (eventName, eventPayload) => _queueEventDispatch(sm, {eventName, eventPayload, isPrivate: true}) 
+
+  // Enter next state.
+  result.enter = nextState.enter({
+    fromStateName,
+    toStateName,
+    eventPayload: eventMeta.eventPayload,
+    changeStatePayload
+  }, {
+    handlePrivate: (eventName, eventPayload) => _queueEventDispatch(sm, {
+      activeStateName: toStateName,
+      eventName,
+      eventPayload,
+      isPrivate: true,
+      stateChangeCountSnapshot: newStateChangeCount
+    })
   });
 
   return result;
-}
-
-function _handleStateChangeAvailabilityToggleAttempt() {
-
-}
-
-
-/**
- * Generate a requestStateChange in a closure, enclosing stateName for validation.
- */
-function _generateRequestStateChange(sm, stateName) {
-  return ({toStateName, eventPayload, changeStatePayload}) => {
-    const activeStateName = _readActiveStateName(sm);
-    const fromStateName = stateName;
-    const nextState = p(sm).states[toStateName];
-
-    const validationErrorMessage = _validateStateChange(sm, {activeStateName, toStateName, fromStateName, nextState});
-    if (validationErrorMessage) throw new Error(validationErrorMessage);
-    
-    const result = {};
-
-    const currentState = p(sm).states[activeStateName];
-    // Exit current state.
-    if (currentState) result.exit = currentState.exit({fromStateName, toStateName, eventPayload, changeStatePayload});
-
-
-    _writeActiveStateName(sm, toStateName);
-    result.enter = nextState.enter({fromStateName, toStateName, eventPayload, changeStatePayload});
-
-    return result;
-  };
 }
 
 
