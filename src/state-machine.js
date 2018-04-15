@@ -139,8 +139,6 @@ function _handleNextEvent(sm) {
     setTimeout(() => {
       const eventMeta = p(sm).pendingDispatchEventMeta.shift();
 
-      console.log('Handling next event:', eventMeta);
-
       const stateChangeCountSnapshot = p(sm).stateChangeCount;
 
       const handler = p(sm).states[eventMeta.activeStateName].getHandler(eventMeta.eventName);
