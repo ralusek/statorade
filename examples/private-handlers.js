@@ -42,6 +42,5 @@ trafficLight.addState('redLight', {
 
 
 // Initialize the state machine.
-trafficLight.init('redLight')
-.catch(err => console.log(err.stack));
+trafficLight.init('redLight');
 
