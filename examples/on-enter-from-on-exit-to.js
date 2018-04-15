@@ -4,14 +4,16 @@ const Statorade = require('../src');
 const trafficLight = new Statorade();
 
 // Add a logger so we can see some info about the state changes.
-trafficLight.onStateChange((info) => console.log('State Change occured!', info));
+trafficLight.onStateChange((info) => console.log('State Change occured!', JSON.stringify(info, null, 2)));
 
 
 // Define the states.
 
 trafficLight.addState('greenLight', {
   // Entry point for 'greenLight' state.
-  onEnter: () => console.log('Entered greenLight.'),
+  onEnterFrom: {
+    'redLight': () => console.log('Entered greenLight from redLight.')
+  },
   // Events the 'greenLight' state will react to.
   handlers: {
     REQUEST_TURN_YELLOW: (changeState) => changeState('yellowLight')
@@ -30,6 +32,9 @@ trafficLight.addState('yellowLight', {
 trafficLight.addState('redLight', {
   // Entry point for 'redLight' state.
   onEnter: () => console.log('Entered redLight.'),
+  onExitTo: {
+    'greenLight': () => console.log('Exiting redLight to greenLight.')
+  },
   // Events the 'redLight' state will react to.
   handlers: {
     REQUEST_TURN_GREEN: (changeState) => changeState('greenLight')
