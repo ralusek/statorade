@@ -1,6 +1,6 @@
 {
   "name": "statorade",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "Event-driven state machine.",
   "main": "lib/index.js",
   "repository": {
