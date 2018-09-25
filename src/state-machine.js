@@ -138,32 +138,36 @@ function _handleNextEvent(sm) {
   return new Promise((resolve, reject) => {
     setTimeout(() => {
       const eventMeta = p(sm).pendingDispatchEventMeta.shift();
+      const activeState = p(sm).states[eventMeta.activeStateName];
 
       const stateChangeCountSnapshot = p(sm).stateChangeCount;
 
-      const handler = p(sm).states[eventMeta.activeStateName].getHandler(eventMeta.eventName);
+      const handler = activeState.getHandler(eventMeta.eventName);
       if (meta.hasHandler = !!handler) {
         meta.isPrivate = handler.isPrivate;
 
         _validateEventHandling(sm, eventMeta, handler);
 
-        const changeStateClosure = (toStateName, changeStatePayload) => {
-          meta.changeStateResult = _handleChangeState(sm, {toStateName, changeStatePayload}, eventMeta);
-        }
-
-        meta.handlerResult = handler.fn(
-          changeStateClosure,
-          {eventPayload: eventMeta.eventPayload},
-          {
-            handlePrivate: (eventName, eventPayload) => _queueEventDispatch(sm, {
-              activeStateName: eventMeta.activeStateName,
-              eventName,
-              eventPayload,
-              isPrivate: true,
-              stateChangeCountSnapshot
-            })
+        if (activeState.beforeHandle({...meta, ...eventMeta}) !== false) {
+          const changeStateClosure = (toStateName, changeStatePayload) => {
+            meta.changeStateResult = _handleChangeState(sm, {toStateName, changeStatePayload}, eventMeta);
           }
-        );
+
+          meta.handlerResult = handler.fn(
+            changeStateClosure,
+            {eventPayload: eventMeta.eventPayload},
+            {
+              handlePrivate: (eventName, eventPayload) => _queueEventDispatch(sm, {
+                activeStateName: eventMeta.activeStateName,
+                eventName,
+                eventPayload,
+                isPrivate: true,
+                stateChangeCountSnapshot
+              })
+            }
+          );
+        }
+        activeState.afterHandle({...meta, ...eventMeta});
       }
 
       resolve(meta);

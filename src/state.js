@@ -21,6 +21,9 @@ class State {
     handlers: publicHandlers = {}, // Event handlers which may be triggered from the state machine.
     privateHandlers = {}, // Event handlers which may only be triggered from the state's onEnter function.
 
+    beforeHandle, // Callback to be called prior to handlers
+    afterHandle, // Callback to be called after handlers
+
     // State machine provided props:
     requestStateChange
   } = {}) {
@@ -30,6 +33,9 @@ class State {
     p(this).onExit = onExit;
     p(this).onEnterFrom = onEnterFrom;
     p(this).onExitTo = onExitTo;
+
+    p(this).beforeHandle = beforeHandle;
+    p(this).afterHandle = afterHandle;
 
     p(this).handlers = _formatHandlers(this, publicHandlers, privateHandlers);
     
@@ -74,6 +80,14 @@ class State {
     result.onExit = p(this).onExit({fromStateName, toStateName, eventPayload, changeStatePayload});
 
     return result;
+  }
+
+  beforeHandle(meta) {
+    return p(this).beforeHandle && p(this).beforeHandle(meta);
+  }
+
+  afterHandle(meta) {
+    return p(this).afterHandle && p(this).afterHandle(meta);
   }
 
   getHandler(eventName) {
