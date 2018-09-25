@@ -70,6 +70,13 @@ class StateMachine {
   }
 
   /**
+   *
+   */
+  getActiveStateName() {
+    return _readActiveStateName(this);
+  }
+
+  /**
    * Register an event handler to be notifed on state changes.
    */
   onStateChange(callback) {
@@ -253,7 +260,7 @@ function _handleChangeState(sm, {toStateName, changeStatePayload}, eventMeta) {
 function _writeActiveStateName(sm, stateName) {
   if (stateName !== BOOT && !p(sm).states[stateName]) throw new Error(`Attempted to set ${stateName} as activeStateName, but no such state is defined.`);
   p(sm).writeActiveStateName(stateName);
-  const readStateName = _readActiveStateName(sm, stateName);
+  const readStateName = _readActiveStateName(sm);
   if (stateName !== readStateName) throw new Error(`Issue encountered with provided writeActiveStateName/readActiveStateName functions. The read state did not produce the expected stateName immediately following a write. Got "${readStateName}," expected "${stateName}."`);
   return readStateName;
 }
