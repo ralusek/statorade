@@ -150,31 +150,35 @@ function _handleNextEvent(sm) {
       const stateChangeCountSnapshot = p(sm).stateChangeCount;
 
       const handler = activeState.getHandler(eventMeta.eventName);
-      if (meta.hasHandler = !!handler) {
+
+      meta.hasHandler = !!handler;
+      meta.beforeHandleResult = activeState.beforeHandle({...meta, ...eventMeta});
+
+
+      if (meta.hasHandler && meta.beforeHandleResult !== false) {
         meta.isPrivate = handler.isPrivate;
 
         _validateEventHandling(sm, eventMeta, handler);
 
-        if (activeState.beforeHandle({...meta, ...eventMeta}) !== false) {
-          const changeStateClosure = (toStateName, changeStatePayload) => {
-            meta.changeStateResult = _handleChangeState(sm, {toStateName, changeStatePayload}, eventMeta);
-          }
-
-          meta.handlerResult = handler.fn(
-            changeStateClosure,
-            {eventPayload: eventMeta.eventPayload},
-            {
-              handlePrivate: (eventName, eventPayload) => _queueEventDispatch(sm, {
-                activeStateName: eventMeta.activeStateName,
-                eventName,
-                eventPayload,
-                isPrivate: true,
-                stateChangeCountSnapshot
-              })
-            }
-          );
+        const changeStateClosure = (toStateName, changeStatePayload) => {
+          meta.changeStateResult = _handleChangeState(sm, {toStateName, changeStatePayload}, eventMeta);
         }
-        activeState.afterHandle({...meta, ...eventMeta});
+
+        meta.handlerResult = handler.fn(
+          changeStateClosure,
+          {eventPayload: eventMeta.eventPayload},
+          {
+            handlePrivate: (eventName, eventPayload) => _queueEventDispatch(sm, {
+              activeStateName: eventMeta.activeStateName,
+              eventName,
+              eventPayload,
+              isPrivate: true,
+              stateChangeCountSnapshot
+            })
+          }
+        );
+
+        meta.afterHandler = activeState.afterHandle({...meta, ...eventMeta});
       }
 
       resolve(meta);
