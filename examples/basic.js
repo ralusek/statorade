@@ -1,5 +1,6 @@
-const Statorade = require('../src');
+const Statorade = require('../dist').default;
 
+console.log('STATORADE', Statorade);
 
 const trafficLight = new Statorade();
 

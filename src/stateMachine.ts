@@ -1,30 +1,45 @@
-const EventEmitter = require('events');
+import { EventEmitter } from 'events';
 
-const State = require('./state');
+import State from './state';
+import {
+  StateName,
+  StateMachineConfig,
+  EventName,
+  EventPayload,
+  StateMachinePrivateNamespace,
+  StateChangeMeta,
+  EventMeta,
+  HandleMeta,
+  ChangeStatePayload,
+  StateConfig,
+  Omit,
+  HandlerObj,
+  HandleStateChangeResult,
+  StateChangeHandler
+} from './types';
 
+// Default States
+const INIT = '_init';
 const BOOT = '_boot';
 
-
-
-// This establishes a private namespace.
-const namespace = new WeakMap();
-function p(object) {
-  if (!namespace.has(object)) namespace.set(object, {});
-  return namespace.get(object);
+const namespace: WeakMap<StateMachine, StateMachinePrivateNamespace> = new WeakMap();
+function p(self: StateMachine): StateMachinePrivateNamespace {
+  if (!namespace.has(self)) namespace.set(self, {} as StateMachinePrivateNamespace);
+  return namespace.get(self) as StateMachinePrivateNamespace;
 }
-
 
 
 /**
  *
  */
-class StateMachine {
+export default class StateMachine {
   constructor({
     // Allow active stateName to be written to external store.
     writeActiveStateName = (stateName) => p(this).activeStateName = stateName,
     // Allow active stateName to be read from external store.
     readActiveStateName = () => p(this).activeStateName
-  } = {}) {
+  }: StateMachineConfig = {} as StateMachineConfig) {
+    p(this).activeStateName = INIT;
     p(this).states = {};
 
     p(this).emitter = new EventEmitter();
@@ -32,35 +47,32 @@ class StateMachine {
     p(this).writeActiveStateName = writeActiveStateName;
     p(this).readActiveStateName = readActiveStateName;
 
-
     p(this).stateChangeCount = 0;
-
-    p(this).pendingDispatchEventMeta = [];
   }
 
   /**
    * Initializes the state machine by creating a boot state which transitions
    * to the provided state immediately.
    */
-  init(stateName) {
-    if (_readActiveStateName(this)) throw new Error(`Unable to initialize state machine, has already initialized.`);
+  init(stateName: StateName) {
+    if (_readActiveStateName(this) !== INIT) throw new Error(`Unable to initialize state machine, has already initialized.`);
 
     _writeActiveStateName(this, BOOT);
     this.addState(BOOT, {
       handlers: {
-        init: (changeState) => changeState(stateName)
+        initialize: (changeState) => changeState(stateName)
       }
     });
 
-    return this.handle('init');
+    return this.handle('initialize');
   }
 
   /**
    * Handle an event within the context of the active state, executing any active
    * event handlers.
    */
-  handle(eventName, eventPayload) {
-    return _queueEventDispatch(this, {
+  handle(eventName: EventName, eventPayload?: EventPayload) {
+    return _handleEvent(this, {
       activeStateName: _readActiveStateName(this),
       eventName,
       eventPayload,
@@ -79,14 +91,14 @@ class StateMachine {
   /**
    * Register an event handler to be notifed on state changes.
    */
-  onStateChange(callback) {
+  onStateChange(callback: StateChangeHandler) {
     p(this).emitter.on('stateChange', callback);
   }
 
   /**
    * Register a new state configuration with the state machine.
    */
-  addState(stateName, config = {}) {
+  addState(stateName: StateName, config: Omit<StateConfig, 'stateName'> = {}) {
     if (!stateName) throw new Error(`Cannot add state, no stateName provided.`);
     if (p(this).states[stateName]) throw new Error(`Cannot add state "${stateName}" to state machine, a state with that name already exists.`);
 
@@ -103,23 +115,7 @@ class StateMachine {
 
 // Private Functions.
 
-
-
-function _queueEventDispatch(sm, {activeStateName, eventName, eventPayload, isPrivate, stateChangeCountSnapshot}) {
-  if (!activeStateName) return Promise.reject(new Error(`Unable to queue event for dispatch, no active state to handle it.`));
-
-  p(sm).pendingDispatchEventMeta.push({
-    activeStateName,
-    eventName,
-    eventPayload,
-    isPrivate,
-    stateChangeCountSnapshot
-  });
-
-  return _handleNextEvent(sm);
-}
-
-function _validateEventHandling(sm, eventMeta, handler) {
+function _validateEventHandling(sm: StateMachine, eventMeta: EventMeta, handler: HandlerObj) {
   const activeStateName = _readActiveStateName(sm);
   if (!activeStateName) throw new Error(`Unable to handle "${eventMeta.eventName}," state machine has not yet been initialized.`);
 
@@ -135,32 +131,30 @@ function _validateEventHandling(sm, eventMeta, handler) {
   if (activeStateName !== eventMeta.activeStateName) throw new Error(`Unable to handle "${eventMeta.eventName}," event was fired while in "${eventMeta.activeStateName}," currently in "${activeStateName}."`);
 }
 
-function _handleNextEvent(sm) {
-  const meta = {};
-
+function _handleEvent(sm: StateMachine, eventMeta: EventMeta): Promise<HandleMeta> {
   // Although we do not await any asynchronous behavior, we wrap this in a promise
   // so that it will execute on next tick. This ensures that any events dispatched
   // within the handler or state change will not be dealt with until any synchronous
   // state changes or other synchronous event behaviors are finished.
-  return new Promise((resolve, reject) => {
+  const promise: Promise<HandleMeta> = new Promise((resolve, reject) => {
     setTimeout(() => {
-      const eventMeta = p(sm).pendingDispatchEventMeta.shift();
       const activeState = p(sm).states[eventMeta.activeStateName];
 
       const stateChangeCountSnapshot = p(sm).stateChangeCount;
 
       const handler = activeState.getHandler(eventMeta.eventName);
 
-      meta.hasHandler = !!handler;
+      const meta: any = {
+        hasHandler: !!handler,
+      };
       meta.beforeHandleResult = activeState.beforeHandle({...meta, ...eventMeta});
-
 
       if (meta.hasHandler && meta.beforeHandleResult !== false) {
         meta.isPrivate = handler.isPrivate;
 
         _validateEventHandling(sm, eventMeta, handler);
 
-        const changeStateClosure = (toStateName, changeStatePayload) => {
+        const changeStateClosure = (toStateName: StateName, changeStatePayload: ChangeStatePayload) => {
           meta.changeStateResult = _handleChangeState(sm, {toStateName, changeStatePayload}, eventMeta);
         }
 
@@ -168,7 +162,7 @@ function _handleNextEvent(sm) {
           changeStateClosure,
           {eventPayload: eventMeta.eventPayload},
           {
-            handlePrivate: (eventName, eventPayload) => _queueEventDispatch(sm, {
+            handlePrivate: (eventName, eventPayload) => _handleEvent(sm, {
               activeStateName: eventMeta.activeStateName,
               eventName,
               eventPayload,
@@ -178,13 +172,14 @@ function _handleNextEvent(sm) {
           }
         );
 
-        meta.afterHandler = activeState.afterHandle({...meta, ...eventMeta});
+        meta.beforeHandleResult = activeState.afterHandle({...meta, ...eventMeta});
       }
 
       resolve(meta);
     });
-  })
-  .then((meta) => {
+  });
+
+  return promise.then((meta) => {
     // If state change occurred, emit event.
     if (meta.changeStateResult) p(sm).emitter.emit('stateChange', meta);
     return meta;
@@ -194,7 +189,11 @@ function _handleNextEvent(sm) {
 /**
  * Generates error messages for various invalid state change conditions.
  */
-function _validateStateChange(sm, {activeStateName, toStateName, fromStateName, nextState}, eventMeta) {
+function _validateStateChange(
+  sm: StateMachine,
+  {activeStateName, toStateName, fromStateName, nextState}: StateChangeMeta,
+  eventMeta: EventMeta
+) {
   if (toStateName === BOOT) return `Cannot change state to the boot state. "${BOOT}" is a reserved state name.`;
   
   const currentStateChangeCount = p(sm).stateChangeCount;
@@ -210,7 +209,17 @@ function _validateStateChange(sm, {activeStateName, toStateName, fromStateName, 
 }
 
 
-function _handleChangeState(sm, {toStateName, changeStatePayload}, eventMeta) {
+function _handleChangeState(
+  sm: StateMachine,
+  {
+    toStateName,
+    changeStatePayload,
+  }: {
+    toStateName: StateName,
+    changeStatePayload: ChangeStatePayload,
+  },
+  eventMeta: EventMeta
+): HandleStateChangeResult {
   const fromStateName = eventMeta.activeStateName;
   const activeStateName = _readActiveStateName(sm);
   const nextState = p(sm).states[toStateName];
@@ -218,7 +227,7 @@ function _handleChangeState(sm, {toStateName, changeStatePayload}, eventMeta) {
   const validationErrorMessage = _validateStateChange(sm, {activeStateName, toStateName, fromStateName, nextState}, eventMeta);
   if (validationErrorMessage) throw new Error(validationErrorMessage);
 
-  const result = {fromStateName, toStateName};
+  const result: any = {fromStateName, toStateName};
 
   const currentState = p(sm).states[activeStateName];
 
@@ -245,7 +254,7 @@ function _handleChangeState(sm, {toStateName, changeStatePayload}, eventMeta) {
     eventPayload: eventMeta.eventPayload,
     changeStatePayload
   }, {
-    handlePrivate: (eventName, eventPayload) => _queueEventDispatch(sm, {
+    handlePrivate: (eventName: EventName, eventPayload: EventPayload) => _handleEvent(sm, {
       activeStateName: toStateName,
       eventName,
       eventPayload,
@@ -259,9 +268,9 @@ function _handleChangeState(sm, {toStateName, changeStatePayload}, eventMeta) {
 
 
 /**
- * Writes the active stateName using the provided or default storage mechanism.
+ * Writes the active stateName using the provided or default storage mechanip(sm).
  */
-function _writeActiveStateName(sm, stateName) {
+function _writeActiveStateName(sm: StateMachine, stateName: StateName) {
   if (stateName !== BOOT && !p(sm).states[stateName]) throw new Error(`Attempted to set ${stateName} as activeStateName, but no such state is defined.`);
   p(sm).writeActiveStateName(stateName);
   const readStateName = _readActiveStateName(sm);
@@ -271,15 +280,8 @@ function _writeActiveStateName(sm, stateName) {
 
 
 /**
- * Reads the active stateName using the provided read mechanism.
+ * Reads the active stateName using the provided read mechanip(sm).
  */
-function _readActiveStateName(sm) {
+function _readActiveStateName(sm: StateMachine) {
   return p(sm).readActiveStateName();
 }
-
-
-
-/**
- *
- */
-module.exports = StateMachine;

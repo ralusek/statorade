@@ -1,16 +1,27 @@
-// This establishes a private namespace.
-const namespace = new WeakMap();
-function p(object) {
-  if (!namespace.has(object)) namespace.set(object, {});
-  return namespace.get(object);
+import {
+  StateName,
+  EventName,
+  OnEnter,
+  OnExit,
+  Handler,
+  HandlerMiddleware,
+  StateConfig,
+  HandlerObj,
+  StateChangeHookMeta,
+  HandlePrivate,
+  StatePrivateNamespace
+} from './types';
+
+const namespace: WeakMap<State, StatePrivateNamespace> = new WeakMap();
+function p(self: State): StatePrivateNamespace {
+  if (!namespace.has(self)) namespace.set(self, {} as StatePrivateNamespace);
+  return namespace.get(self) as StatePrivateNamespace;
 }
-
-
 
 /**
  *
  */
-class State {
+export default class State {
   constructor({
     // User provided props:
     stateName, // State Name
@@ -23,10 +34,7 @@ class State {
 
     beforeHandle, // Callback to be called prior to handlers
     afterHandle, // Callback to be called after handlers
-
-    // State machine provided props:
-    requestStateChange
-  } = {}) {
+  }: StateConfig = {} as StateConfig) {
     p(this).stateName = stateName;
 
     p(this).onEnter = onEnter;
@@ -34,20 +42,25 @@ class State {
     p(this).onEnterFrom = onEnterFrom;
     p(this).onExitTo = onExitTo;
 
-    p(this).beforeHandle = beforeHandle;
-    p(this).afterHandle = afterHandle;
+    p(this).handlerMiddleware = {
+      before: beforeHandle,
+      after: afterHandle,
+    };
 
     p(this).handlers = _formatHandlers(this, publicHandlers, privateHandlers);
-    
-    p(this).requestStateChange = requestStateChange;
-
   }
 
   enter(
-    {fromStateName, toStateName, eventPayload, changeStatePayload},
-    {handlePrivate}
-  ) {
-    const result = {};
+    {fromStateName, toStateName, eventPayload, changeStatePayload}: StateChangeHookMeta,
+    {handlePrivate}: {handlePrivate: HandlePrivate}
+  ): {
+    onEnterFrom?: {
+      state: StateName;
+      result: ReturnType<OnEnter>;
+    };
+    onEnter: ReturnType<OnEnter>;
+  } {
+    const result: any = {};
 
     const onEnterFrom = p(this).onEnterFrom[fromStateName];
     if (onEnterFrom) {
@@ -57,7 +70,7 @@ class State {
           {fromStateName, toStateName, eventPayload, changeStatePayload},
           {handlePrivate}
         )
-      }
+      };
     }
     result.onEnter = p(this).onEnter(
       {fromStateName, toStateName, eventPayload, changeStatePayload},
@@ -67,8 +80,14 @@ class State {
     return result;
   }
 
-  exit({fromStateName, toStateName, eventPayload, changeStatePayload}) {
-    const result = {};
+  exit({fromStateName, toStateName, eventPayload, changeStatePayload}: StateChangeHookMeta): {
+    onExitTo?: {
+      state: StateName;
+      result: ReturnType<OnExit>;
+    };
+    onExit: ReturnType<OnExit>;
+  } {
+    const result: any = {};
 
     const onExitTo = p(this).onExitTo[toStateName];
     if (onExitTo) {
@@ -82,15 +101,17 @@ class State {
     return result;
   }
 
-  beforeHandle(meta) {
-    return p(this).beforeHandle && p(this).beforeHandle(meta);
+  beforeHandle(meta: any) {
+    const before = p(this).handlerMiddleware.before;
+    return before && before(meta);
   }
 
-  afterHandle(meta) {
-    return p(this).afterHandle && p(this).afterHandle(meta);
+  afterHandle(meta: any) {
+    const after = p(this).handlerMiddleware.after;
+    return after && after(meta);
   }
 
-  getHandler(eventName) {
+  getHandler(eventName: EventName) {
     return p(this).handlers[eventName];
   }
 }
@@ -102,8 +123,12 @@ class State {
 /**
  *
  */
-function _formatHandlers(state, publicHandlers, privateHandlers) {
-  const formatted = {};
+function _formatHandlers(
+  state: State,
+  publicHandlers: {[KEventName in EventName]: Handler},
+  privateHandlers: {[KEventName in EventName]: Handler},
+) {
+  const formatted: {[KEventName in EventName]: HandlerObj} = {};
 
   [publicHandlers, privateHandlers].forEach((handlers, i) => {
     const isPrivate = i === 1;
@@ -118,10 +143,3 @@ function _formatHandlers(state, publicHandlers, privateHandlers) {
 
   return formatted;
 }
-
-
-
-/**
- *
- */
-module.exports = State;
