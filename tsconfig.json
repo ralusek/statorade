@@ -5,9 +5,11 @@
       "es2015",
       "dom"
     ],
+    "sourceMap": false,
+    "declaration": true,
     "module": "commonjs",
-    "sourceMap": true,
-    // "declaration": true,
+    "removeComments": false,
+    "moduleResolution": "node",
     "outDir": "./dist",
     "rootDir": "./src",
     // "baseUrl": "./src",

@@ -1,7 +1,5 @@
 const Statorade = require('../dist').default;
 
-console.log('STATORADE', Statorade);
-
 const trafficLight = new Statorade();
 
 // Add a logger so we can see some info about the state changes.

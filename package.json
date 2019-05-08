@@ -1,6 +1,6 @@
 {
   "name": "statorade",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Event-driven state machine.",
   "repository": {
     "url": "https://github.com/ralusek/statorade",
@@ -16,7 +16,7 @@
     "event driven"
   ],
   "scripts": {
-    "build": "tsc ."
+    "build": "tsc"
   },
   "author": "Tomas Savigliano",
   "license": "MIT",
