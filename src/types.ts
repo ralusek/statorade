@@ -32,9 +32,9 @@ export type HandlerObj = {
 export type HandlePrivate = (eventName: EventName, eventPayload: EventPayload) => Promise<HandleMeta>;
 export type HandlerMiddleware = (meta: any) => any;
 /** A custom setter to write the state, used if state is stored elsewhere (such as redux store or DB) */
-export type WriteActiveStateName = <TStateName extends StateName>(stateName: TStateName) => TStateName;
+export type WriteActiveStateName<TStateName extends StateName = StateName> = (stateName: TStateName) => TStateName;
 /** A custom getter to read the state, used if the state is stored elsewhere (such as redux store or DB) */
-export type ReadActiveStateName = () => StateName;
+export type ReadActiveStateName<TStateName extends StateName = StateName> = () => TStateName;
 
 export type EventMeta = {
   activeStateName: StateName;
@@ -72,17 +72,17 @@ export type HandleMeta = {
 /**
  * Constructor configuration object for StateMachine class.
  */
-export type StateMachineConfig = {
+export type StateMachineConfig<TStateName extends StateName = StateName> = {
   /** A custom setter to write the state, used if state is stored elsewhere (such as redux store or DB) */
-  writeActiveStateName: WriteActiveStateName;
+  writeActiveStateName: WriteActiveStateName<TStateName>;
   /** A custom getter to read the state, used if the state is stored elsewhere (such as redux store or DB) */
-  readActiveStateName: ReadActiveStateName;
+  readActiveStateName: ReadActiveStateName<TStateName>;
 };
 
 /**
  * The namespace for the StateMachine class.
  */
-export type StateMachinePrivateNamespace = {
+export type StateMachinePrivateNamespace<TStateName extends StateName = StateName> = {
   /** The currently active state name. */
   activeStateName: StateName;
   /** The mapping reference of states. */
@@ -90,9 +90,9 @@ export type StateMachinePrivateNamespace = {
   /** The state machine's event emitter. */
   emitter: EventEmitter;
   /** A custom setter to write the state, used if state is stored elsewhere (such as redux store or DB) */
-  writeActiveStateName: WriteActiveStateName;
+  writeActiveStateName: WriteActiveStateName<TStateName>;
   /** A custom getter to read the state, used if the state is stored elsewhere (such as redux store or DB) */
-  readActiveStateName: ReadActiveStateName;
+  readActiveStateName: ReadActiveStateName<TStateName>;
   /** How many times the state has changed. Acts as an identifier for the current state change. */
   stateChangeCount: number;
   /** Backlogged events to dispatch. */

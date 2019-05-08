@@ -31,7 +31,7 @@ function p(self: StateMachine): StateMachinePrivateNamespace {
 /**
  *
  */
-export default class StateMachine {
+export default class StateMachine{
   constructor({
     // Allow active stateName to be written to external store.
     writeActiveStateName = (stateName) => p(this).activeStateName = stateName,
