@@ -11,11 +11,10 @@ import {
   EventMeta,
   HandleMeta,
   ChangeStatePayload,
-  StateConfig,
-  Omit,
   HandlerObj,
   HandleStateChangeResult,
-  StateChangeHandler
+  StateChangeHandler,
+  AddStateConfig
 } from './types';
 
 // Default States
@@ -98,7 +97,7 @@ export default class StateMachine {
   /**
    * Register a new state configuration with the state machine.
    */
-  addState(stateName: StateName, config: Omit<StateConfig, 'stateName'> = {}) {
+  addState(stateName: StateName, config: AddStateConfig = {}) {
     if (!stateName) throw new Error(`Cannot add state, no stateName provided.`);
     if (p(this).states[stateName]) throw new Error(`Cannot add state "${stateName}" to state machine, a state with that name already exists.`);
 

@@ -123,6 +123,8 @@ export type StateConfig = {
   afterHandle?: HandlerMiddleware,
 };
 
+export type AddStateConfig = Omit<StateConfig, 'stateName'>;
+
 /**
  * The namespace for the State\ class.
  */

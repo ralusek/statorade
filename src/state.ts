@@ -4,7 +4,6 @@ import {
   OnEnter,
   OnExit,
   Handler,
-  HandlerMiddleware,
   StateConfig,
   HandlerObj,
   StateChangeHookMeta,
