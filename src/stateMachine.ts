@@ -18,7 +18,6 @@ import {
 } from './types';
 
 // Default States
-const INIT = '_init';
 const BOOT = '_boot';
 
 const namespace: WeakMap<StateMachine, StateMachinePrivateNamespace> = new WeakMap();
@@ -38,7 +37,6 @@ export default class StateMachine{
     // Allow active stateName to be read from external store.
     readActiveStateName = () => p(this).activeStateName
   }: StateMachineConfig = {} as StateMachineConfig) {
-    p(this).activeStateName = INIT;
     p(this).states = {};
 
     p(this).emitter = new EventEmitter();
@@ -47,6 +45,8 @@ export default class StateMachine{
     p(this).readActiveStateName = readActiveStateName;
 
     p(this).stateChangeCount = 0;
+
+    p(this).hasInitialized = false;
   }
 
   /**
@@ -54,7 +54,8 @@ export default class StateMachine{
    * to the provided state immediately.
    */
   init(stateName: StateName) {
-    if (_readActiveStateName(this) !== INIT) throw new Error(`Unable to initialize state machine, has already initialized.`);
+    if (p(this).hasInitialized) throw new Error(`Unable to initialize state machine, has already initialized.`);
+    p(this).hasInitialized = true;
 
     _writeActiveStateName(this, BOOT);
     this.addState(BOOT, {

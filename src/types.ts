@@ -97,6 +97,8 @@ export type StateMachinePrivateNamespace = {
   stateChangeCount: number;
   /** Backlogged events to dispatch. */
   pendingDispatchEventMeta: EventMeta[];
+  /** Whether or not the state machine has been initialized. */
+  hasInitialized: boolean;
 };
 
 /**
