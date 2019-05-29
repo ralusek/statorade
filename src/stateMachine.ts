@@ -17,6 +17,8 @@ import {
   AddStateConfig
 } from './types';
 
+import { EVENT_NAME } from './constants';
+
 // Default States
 const BOOT = '_boot';
 
@@ -30,7 +32,7 @@ function p(self: StateMachine): StateMachinePrivateNamespace {
 /**
  *
  */
-export default class StateMachine{
+export default class StateMachine {
   constructor({
     // Allow active stateName to be written to external store.
     writeActiveStateName = (stateName) => p(this).activeStateName = stateName,
@@ -92,7 +94,14 @@ export default class StateMachine{
    * Register an event handler to be notifed on state changes.
    */
   onStateChange(callback: StateChangeHandler) {
-    p(this).emitter.on('stateChange', callback);
+    p(this).emitter.on(EVENT_NAME.STATE_CHANGE, callback);
+  }
+
+  /**
+   * Register an event handler to be notified on errors.
+   */
+  onError(callback: (err: Error) => void) {
+    p(this).emitter.on(EVENT_NAME.ERROR, callback);
   }
 
   /**
@@ -124,11 +133,11 @@ function _validateEventHandling(sm: StateMachine, eventMeta: EventMeta, handler:
   const currentStateChangeCount = p(sm).stateChangeCount;
   const stateChangesSinceDispatch = currentStateChangeCount - eventMeta.stateChangeCountSnapshot;
   if (stateChangesSinceDispatch) {
-    throw new Error(`Unable to handle "${eventMeta.eventName}," ${stateChangesSinceDispatch} state changes have occurred since this was dispatched.`);
+    p(sm).emitter.emit(EVENT_NAME.ERROR, new Error(`Unable to handle "${eventMeta.eventName}," ${stateChangesSinceDispatch} state changes have occurred since this was dispatched.`));
   }
 
   // Should not logically be possible, likely redundant.
-  if (activeStateName !== eventMeta.activeStateName) throw new Error(`Unable to handle "${eventMeta.eventName}," event was fired while in "${eventMeta.activeStateName}," currently in "${activeStateName}."`);
+  if (activeStateName !== eventMeta.activeStateName) p(sm).emitter.emit(EVENT_NAME.ERROR, new Error(`Unable to handle "${eventMeta.eventName}," event was fired while in "${eventMeta.activeStateName}," currently in "${activeStateName}."`));
 }
 
 function _handleEvent(sm: StateMachine, eventMeta: EventMeta): Promise<HandleMeta> {
@@ -181,7 +190,7 @@ function _handleEvent(sm: StateMachine, eventMeta: EventMeta): Promise<HandleMet
 
   return promise.then((meta) => {
     // If state change occurred, emit event.
-    if (meta.changeStateResult) p(sm).emitter.emit('stateChange', meta);
+    if (meta.changeStateResult) p(sm).emitter.emit(EVENT_NAME.STATE_CHANGE, meta);
     return meta;
   });
 }
@@ -199,7 +208,7 @@ function _validateStateChange(
   const currentStateChangeCount = p(sm).stateChangeCount;
   const stateChangesSinceDispatch = currentStateChangeCount - eventMeta.stateChangeCountSnapshot;
   if (stateChangesSinceDispatch) {
-    throw new Error(`Unable to change state from "${fromStateName}" to "${toStateName}," ${stateChangesSinceDispatch} state changes have occurred since the enclosing event handler was dispatched.`);
+    return `Unable to change state from "${fromStateName}" to "${toStateName}," ${stateChangesSinceDispatch} state changes have occurred since the enclosing event handler was dispatched.`;
   }
 
   // Should not logically be possible, likely redundant.
@@ -219,13 +228,13 @@ function _handleChangeState(
     changeStatePayload: ChangeStatePayload,
   },
   eventMeta: EventMeta
-): HandleStateChangeResult {
+): HandleStateChangeResult | void {
   const fromStateName = eventMeta.activeStateName;
   const activeStateName = _readActiveStateName(sm);
   const nextState = p(sm).states[toStateName];
 
   const validationErrorMessage = _validateStateChange(sm, {activeStateName, toStateName, fromStateName, nextState}, eventMeta);
-  if (validationErrorMessage) throw new Error(validationErrorMessage);
+  if (validationErrorMessage) return p(sm).emitter.emit(EVENT_NAME.ERROR, new Error(validationErrorMessage));
 
   const result: any = {fromStateName, toStateName};
 

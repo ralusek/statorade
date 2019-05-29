@@ -1,5 +1,6 @@
 import State from './state';
 import { EventEmitter } from 'events';
+import { EVENT_NAME } from './constants';
 
 // General Util Types
 export type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
@@ -79,6 +80,13 @@ export type StateMachineConfig= {
   readActiveStateName: ReadActiveStateName;
 };
 
+interface Emitter {
+  on(event: EVENT_NAME.ERROR, callback: (err: Error) => void): void;
+  on(event: EVENT_NAME.STATE_CHANGE, callback: StateChangeHandler): void;
+  emit(event: EVENT_NAME.ERROR, err: Error): void; 
+  emit(event: EVENT_NAME.STATE_CHANGE, meta: HandleMeta): void;
+};
+
 /**
  * The namespace for the StateMachine class.
  */
@@ -88,7 +96,7 @@ export type StateMachinePrivateNamespace = {
   /** The mapping reference of states. */
   states: {[KStateName in StateName]: State};
   /** The state machine's event emitter. */
-  emitter: EventEmitter;
+  emitter: Emitter;
   /** A custom setter to write the state, used if state is stored elsewhere (such as redux store or DB) */
   writeActiveStateName: WriteActiveStateName;
   /** A custom getter to read the state, used if the state is stored elsewhere (such as redux store or DB) */
