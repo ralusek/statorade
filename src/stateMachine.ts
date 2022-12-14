@@ -86,8 +86,15 @@ export default class StateMachine {
   /**
    *
    */
-  getActiveStateName() {
+   getActiveStateName() {
     return _readActiveStateName(this);
+  }
+
+  /**
+   *
+   */
+   getPreviousStateName() {
+    return p(this).previousStateName;
   }
 
   /**
@@ -253,7 +260,7 @@ function _handleChangeState(
     changeStatePayload
   });
 
-
+  p(sm).previousStateName = activeStateName;
   _writeActiveStateName(sm, toStateName);
 
   // Enter next state.

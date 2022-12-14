@@ -93,6 +93,8 @@ interface Emitter {
 export type StateMachinePrivateNamespace = {
   /** The currently active state name. */
   activeStateName: StateName;
+  /** The previously active state name. */
+  previousStateName: StateName;
   /** The mapping reference of states. */
   states: {[KStateName in StateName]: State};
   /** The state machine's event emitter. */

@@ -1,6 +1,6 @@
 {
   "name": "statorade",
-  "version": "0.2.6",
+  "version": "0.3.0",
   "description": "Event-driven state machine.",
   "repository": {
     "url": "https://github.com/ralusek/statorade",
@@ -16,17 +16,31 @@
     "event driven"
   ],
   "scripts": {
-    "build": "tsc"
+    "build": "npx ttsc",
+    "start": "npm run build",
+    "test": "npm run build && mocha -r ts-node/register tests/**/*.test.ts",
+    "prettify": "npx prettier --write '**/*.ts'"
   },
   "author": "Tomas Savigliano",
   "license": "MIT",
-  "main": "./dist/index.js",
+  "main": "./lib/index.js",
   "files": [
-    "/dist"
+    "/lib"
   ],
-  "dependencies": {},
   "devDependencies": {
-    "@types/node": "^12.0.0",
-    "typescript": "3.4.5"
+    "@types/chai": "^4.3.4",
+    "@types/mocha": "^10.0.1",
+    "@types/node": "^18.11.15",
+    "chai": "^4.3.7",
+    "mocha": "^10.2.0",
+    "prettier": "^2.8.1",
+    "pretty-quick": "^3.1.3",
+    "ts-node": "^10.9.1",
+    "tslint": "^6.1.3",
+    "tslint-config-prettier": "^1.18.0",
+    "tslint-plugin-prettier": "^2.3.0",
+    "ttypescript": "^1.5.15",
+    "typescript": "^4.9.4",
+    "typescript-transform-paths": "^3.4.4"
   }
 }
