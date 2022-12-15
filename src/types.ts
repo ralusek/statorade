@@ -23,7 +23,9 @@ export type Handler = (
   changeState: ChangeStateClosure,
   eventPayloadObj: { eventPayload: EventPayload },
   misc: {
-    handlePrivate: HandlePrivate
+    handlePrivate: HandlePrivate;
+    activeStateName: string;
+    previousStateName: string;
   }
 ) => any;
 export type HandlerObj = {

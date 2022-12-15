@@ -184,7 +184,9 @@ function _handleEvent(sm: StateMachine, eventMeta: EventMeta): Promise<HandleMet
               eventPayload,
               isPrivate: true,
               stateChangeCountSnapshot
-            })
+            }),
+            activeStateName: sm.getActiveStateName(),
+            previousStateName: sm.getPreviousStateName(),
           }
         );
 
