@@ -6,8 +6,12 @@ import StateMachine from '../lib';
 describe('Basic Functionality', () => {
   let sm: StateMachine;
   let greenEntered = 0;
+  let greenExited = 0;
   let redEntered = 0;
+  let redExited = 0;
   let yellowEntered = 0;
+
+  let greenEnteredFromRed = 0;
 
   it('should be able to be instantiated.', async () => {
     sm = new StateMachine();
@@ -20,6 +24,10 @@ describe('Basic Functionality', () => {
       onEnter: () => {
         redEntered++;
       },
+      onExit: () => {
+        redExited++;
+        expect(greenEntered).to.equal(0);
+      },
       handlers: {
         green: (changeState) => changeState('green'),
       },
@@ -28,6 +36,16 @@ describe('Basic Functionality', () => {
     sm.addState('green', {
       onEnter: () => {
         greenEntered++;
+      },
+      onEnterFrom: {
+        red: () => {
+          expect(greenEntered).to.equal(0);
+          greenEnteredFromRed++;
+        },
+      },
+      onExit: () => {
+        greenExited++;
+        expect(yellowEntered).to.equal(0);
       },
       handlers: {
         yellow: (changeState, eventPayload, misc) => {
@@ -62,6 +80,9 @@ describe('Basic Functionality', () => {
         expect(greenEntered).to.equal(1);
         expect(redEntered).to.equal(1);
         expect(yellowEntered).to.equal(0);
+        expect(greenEnteredFromRed).to.equal(1);
+        expect(redExited).to.equal(1);
+        expect(greenExited).to.equal(0);
         expect(sm.getPreviousStateName()).to.equal('red');
         expect(sm.getActiveStateName()).to.equal('green');
         resolve(null);
@@ -74,6 +95,7 @@ describe('Basic Functionality', () => {
         expect(greenEntered).to.equal(1);
         expect(redEntered).to.equal(1);
         expect(yellowEntered).to.equal(1);
+        expect(greenExited).to.equal(1);
         expect(sm.getPreviousStateName()).to.equal('green');
         expect(sm.getActiveStateName()).to.equal('yellow');
         resolve(null);
