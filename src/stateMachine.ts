@@ -153,7 +153,7 @@ function _handleEvent(sm: StateMachine, eventMeta: EventMeta): Promise<HandleMet
   // within the handler or state change will not be dealt with until any synchronous
   // state changes or other synchronous event behaviors are finished.
   const promise: Promise<HandleMeta> = new Promise((resolve, reject) => {
-    setTimeout(() => {
+    setImmediate(() => {
       const activeState = p(sm).states[eventMeta.activeStateName];
 
       const stateChangeCountSnapshot = p(sm).stateChangeCount;
@@ -176,7 +176,7 @@ function _handleEvent(sm: StateMachine, eventMeta: EventMeta): Promise<HandleMet
 
         meta.handlerResult = handler.fn(
           changeStateClosure,
-          {eventPayload: eventMeta.eventPayload},
+          { eventPayload: eventMeta.eventPayload },
           {
             handlePrivate: (eventName, eventPayload) => _handleEvent(sm, {
               activeStateName: eventMeta.activeStateName,
@@ -185,9 +185,13 @@ function _handleEvent(sm: StateMachine, eventMeta: EventMeta): Promise<HandleMet
               isPrivate: true,
               stateChangeCountSnapshot
             }),
-            activeStateName: sm.getActiveStateName(),
-            previousStateName: sm.getPreviousStateName(),
-          }
+            get activeStateName() {
+              return sm.getActiveStateName();
+            },
+            get previousStateName() {
+              return sm.getPreviousStateName();
+            },
+          },
         );
 
         meta.beforeHandleResult = activeState.afterHandle({...meta, ...eventMeta});
@@ -286,7 +290,7 @@ function _handleChangeState(
 
 
 /**
- * Writes the active stateName using the provided or default storage mechanip(sm).
+ * Writes the active stateName using the provided or default storage mechanism.
  */
 function _writeActiveStateName(sm: StateMachine, stateName: StateName) {
   if (stateName !== BOOT && !p(sm).states[stateName]) throw new Error(`Attempted to set ${stateName} as activeStateName, but no such state is defined.`);
@@ -298,7 +302,7 @@ function _writeActiveStateName(sm: StateMachine, stateName: StateName) {
 
 
 /**
- * Reads the active stateName using the provided read mechanip(sm).
+ * Reads the active stateName using the provided read mechanism.
  */
 function _readActiveStateName(sm: StateMachine) {
   return p(sm).readActiveStateName();
