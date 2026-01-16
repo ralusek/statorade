@@ -3,7 +3,7 @@
   "version": "0.3.2",
   "description": "Event-driven state machine.",
   "repository": {
-    "url": "https://github.com/ralusek/statorade",
+    "url": "git+https://github.com/ralusek/statorade.git",
     "type": "git"
   },
   "keywords": [

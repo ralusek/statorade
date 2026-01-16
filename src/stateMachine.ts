@@ -14,7 +14,11 @@ import {
   HandlerObj,
   HandleStateChangeResult,
   StateChangeHandler,
-  AddStateConfig
+  AddStateConfig,
+  EventPayloadMap,
+  DefaultEventPayloadMap,
+  TypedAddStateConfig,
+  TypedHandlePrivate
 } from './types';
 
 import { EVENT_NAME } from './constants';
@@ -22,17 +26,32 @@ import { EVENT_NAME } from './constants';
 // Default States
 const BOOT = '_boot';
 
-const namespace: WeakMap<StateMachine, StateMachinePrivateNamespace> = new WeakMap();
-function p(self: StateMachine): StateMachinePrivateNamespace {
+const namespace: WeakMap<StateMachine<any, any>, StateMachinePrivateNamespace> = new WeakMap();
+function p(self: StateMachine<any, any>): StateMachinePrivateNamespace {
   if (!namespace.has(self)) namespace.set(self, {} as StateMachinePrivateNamespace);
   return namespace.get(self) as StateMachinePrivateNamespace;
 }
 
 
 /**
+ * A finite state machine with optional typed event payloads.
  *
+ * @typeParam TPublicEvents - Map of public event names to their payload types
+ * @typeParam TPrivateEvents - Map of private event names to their payload types
+ *
+ * @example
+ * // Typed usage:
+ * type PublicEvents = { login: { username: string }; logout: void };
+ * type PrivateEvents = { validate: { token: string } };
+ * const sm = new StateMachine<PublicEvents, PrivateEvents>();
+ *
+ * // Untyped usage (backward compatible):
+ * const sm = new StateMachine();
  */
-export default class StateMachine {
+export default class StateMachine<
+  TPublicEvents extends EventPayloadMap = DefaultEventPayloadMap,
+  TPrivateEvents extends EventPayloadMap = DefaultEventPayloadMap
+> {
   constructor({
     // Allow active stateName to be written to external store.
     writeActiveStateName = (stateName) => p(this).activeStateName = stateName,
@@ -66,18 +85,36 @@ export default class StateMachine {
       }
     });
 
-    return this.handle('initialize');
+    // Internal event for boot state - use type assertion since 'initialize' is not a user-defined event
+    return (this.handle as (eventName: string, eventPayload?: any) => Promise<HandleMeta>)('initialize');
   }
 
   /**
    * Handle an event within the context of the active state, executing any active
    * event handlers.
+   *
+   * When the state machine is typed, this method enforces correct payload types:
+   * - Events with `void` payload don't require a second argument
+   * - Events with defined payload types require the correct payload
+   *
+   * @example
+   * // Typed state machine
+   * type Events = { login: { user: string }; logout: void };
+   * const sm = new StateMachine<Events>();
+   * sm.handle('login', { user: 'john' }); // OK
+   * sm.handle('logout'); // OK, no payload needed
+   * sm.handle('login', { wrong: 'type' }); // Type error!
    */
-  handle(eventName: EventName, eventPayload?: EventPayload) {
+  handle<TEventName extends keyof TPublicEvents & string>(
+    eventName: TEventName,
+    ...args: TPublicEvents[TEventName] extends void
+      ? [eventPayload?: undefined]
+      : [eventPayload: TPublicEvents[TEventName]]
+  ): Promise<HandleMeta> {
     return _handleEvent(this, {
       activeStateName: _readActiveStateName(this),
       eventName,
-      eventPayload,
+      eventPayload: args[0],
       isPrivate: false,
       stateChangeCountSnapshot: p(this).stateChangeCount
     });
@@ -113,14 +150,29 @@ export default class StateMachine {
 
   /**
    * Register a new state configuration with the state machine.
+   *
+   * When the state machine is typed, handlers receive typed payloads:
+   *
+   * @example
+   * type Events = { login: { user: string; pass: string } };
+   * const sm = new StateMachine<Events>();
+   * sm.addState('loggedOut', {
+   *   handlers: {
+   *     login: (changeState, { eventPayload }) => {
+   *       // eventPayload is typed as { user: string; pass: string }
+   *       console.log(eventPayload.user);
+   *       changeState('loggedIn');
+   *     }
+   *   }
+   * });
    */
-  addState(stateName: StateName, config: AddStateConfig = {}) {
+  addState(stateName: StateName, config: TypedAddStateConfig<TPublicEvents, TPrivateEvents> = {}) {
     if (!stateName) throw new Error(`Cannot add state, no stateName provided.`);
     if (p(this).states[stateName]) throw new Error(`Cannot add state "${stateName}" to state machine, a state with that name already exists.`);
 
 
     const state = new State({
-      ...config,
+      ...config as AddStateConfig,
       stateName
     });
 
@@ -131,7 +183,7 @@ export default class StateMachine {
 
 // Private Functions.
 
-function _validateEventHandling(sm: StateMachine, eventMeta: EventMeta, handler: HandlerObj) {
+function _validateEventHandling(sm: StateMachine<any, any>, eventMeta: EventMeta, handler: HandlerObj) {
   const activeStateName = _readActiveStateName(sm);
   if (!activeStateName) throw new Error(`Unable to handle "${eventMeta.eventName}," state machine has not yet been initialized.`);
 
@@ -147,7 +199,7 @@ function _validateEventHandling(sm: StateMachine, eventMeta: EventMeta, handler:
   if (activeStateName !== eventMeta.activeStateName) p(sm).emitter.emit(EVENT_NAME.ERROR, new Error(`Unable to handle "${eventMeta.eventName}," event was fired while in "${eventMeta.activeStateName}," currently in "${activeStateName}."`));
 }
 
-function _handleEvent(sm: StateMachine, eventMeta: EventMeta): Promise<HandleMeta> {
+function _handleEvent(sm: StateMachine<any, any>, eventMeta: EventMeta): Promise<HandleMeta> {
   // Although we do not await any asynchronous behavior, we wrap this in a promise
   // so that it will execute on next tick. This ensures that any events dispatched
   // within the handler or state change will not be dealt with until any synchronous
@@ -212,7 +264,7 @@ function _handleEvent(sm: StateMachine, eventMeta: EventMeta): Promise<HandleMet
  * Generates error messages for various invalid state change conditions.
  */
 function _validateStateChange(
-  sm: StateMachine,
+  sm: StateMachine<any, any>,
   {activeStateName, toStateName, fromStateName, nextState}: StateChangeMeta,
   eventMeta: EventMeta
 ) {
@@ -232,7 +284,7 @@ function _validateStateChange(
 
 
 function _handleChangeState(
-  sm: StateMachine,
+  sm: StateMachine<any, any>,
   {
     toStateName,
     changeStatePayload,
@@ -292,7 +344,7 @@ function _handleChangeState(
 /**
  * Writes the active stateName using the provided or default storage mechanism.
  */
-function _writeActiveStateName(sm: StateMachine, stateName: StateName) {
+function _writeActiveStateName(sm: StateMachine<any, any>, stateName: StateName) {
   if (stateName !== BOOT && !p(sm).states[stateName]) throw new Error(`Attempted to set ${stateName} as activeStateName, but no such state is defined.`);
   p(sm).writeActiveStateName(stateName);
   const readStateName = _readActiveStateName(sm);
@@ -304,6 +356,6 @@ function _writeActiveStateName(sm: StateMachine, stateName: StateName) {
 /**
  * Reads the active stateName using the provided read mechanism.
  */
-function _readActiveStateName(sm: StateMachine) {
+function _readActiveStateName(sm: StateMachine<any, any>) {
   return p(sm).readActiveStateName();
 }
