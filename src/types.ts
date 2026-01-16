@@ -34,6 +34,28 @@ export type EventPayloadMap = Record<string, any>;
 export type DefaultEventPayloadMap = Record<string, any>;
 
 /**
+ * Helper type that resolves to the overlapping keys between two types.
+ */
+export type OverlappingKeys<T, U> = keyof T & keyof U;
+
+/**
+ * Constraint type that ensures no overlapping keys between public and private event maps.
+ * If there are overlapping keys, this resolves to `never`, causing a type error.
+ *
+ * @example
+ * // This will cause a type error because 'submit' exists in both:
+ * type Public = { submit: { data: string } };
+ * type Private = { submit: { internal: number } };
+ * type Check = AssertNoOverlap<Public, Private>; // Error!
+ */
+export type AssertNoOverlap<
+  TPublic extends EventPayloadMap,
+  TPrivate extends EventPayloadMap
+> = OverlappingKeys<TPublic, TPrivate> extends never
+  ? unknown
+  : never;
+
+/**
  * Extracts the payload type for a given event name from an event map.
  * Returns `any` if the event name is not in the map.
  */
@@ -43,20 +65,37 @@ export type PayloadForEvent<
 > = TEventName extends keyof TEventMap ? TEventMap[TEventName] : any;
 
 /**
- * Typed handler function for a specific event.
+ * Typed handler function for a public event.
+ * Always uses the public event map to determine payload type.
  */
-export type TypedHandler<
+export type TypedPublicHandler<
   TPublicEvents extends EventPayloadMap,
   TPrivateEvents extends EventPayloadMap,
-  TEventName extends keyof TPublicEvents | keyof TPrivateEvents
+  TEventName extends keyof TPublicEvents
 > = (
   changeState: ChangeStateClosure,
   eventPayloadObj: {
-    eventPayload: TEventName extends keyof TPublicEvents
-      ? TPublicEvents[TEventName]
-      : TEventName extends keyof TPrivateEvents
-        ? TPrivateEvents[TEventName]
-        : any
+    eventPayload: TPublicEvents[TEventName]
+  },
+  misc: {
+    handlePrivate: TypedHandlePrivate<TPrivateEvents>;
+    activeStateName: string;
+    previousStateName: string;
+  }
+) => any;
+
+/**
+ * Typed handler function for a private event.
+ * Always uses the private event map to determine payload type.
+ */
+export type TypedPrivateHandler<
+  TPublicEvents extends EventPayloadMap,
+  TPrivateEvents extends EventPayloadMap,
+  TEventName extends keyof TPrivateEvents
+> = (
+  changeState: ChangeStateClosure,
+  eventPayloadObj: {
+    eventPayload: TPrivateEvents[TEventName]
   },
   misc: {
     handlePrivate: TypedHandlePrivate<TPrivateEvents>;
@@ -86,13 +125,13 @@ export type TypedOnEnter<TPrivateEvents extends EventPayloadMap> = (
 ) => any;
 
 /**
- * Typed handlers object for a state.
+ * Typed handlers object for a state (public events).
  */
 export type TypedHandlers<
   TPublicEvents extends EventPayloadMap,
   TPrivateEvents extends EventPayloadMap
 > = {
-  [K in keyof TPublicEvents]?: TypedHandler<TPublicEvents, TPrivateEvents, K>;
+  [K in keyof TPublicEvents]?: TypedPublicHandler<TPublicEvents, TPrivateEvents, K>;
 };
 
 /**
@@ -102,7 +141,7 @@ export type TypedPrivateHandlers<
   TPublicEvents extends EventPayloadMap,
   TPrivateEvents extends EventPayloadMap
 > = {
-  [K in keyof TPrivateEvents]?: TypedHandler<TPublicEvents, TPrivateEvents, K>;
+  [K in keyof TPrivateEvents]?: TypedPrivateHandler<TPublicEvents, TPrivateEvents, K>;
 };
 
 /**

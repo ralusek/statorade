@@ -18,7 +18,8 @@ import {
   EventPayloadMap,
   DefaultEventPayloadMap,
   TypedAddStateConfig,
-  TypedHandlePrivate
+  TypedHandlePrivate,
+  OverlappingKeys
 } from './types';
 
 import { EVENT_NAME } from './constants';
@@ -34,10 +35,18 @@ function p(self: StateMachine<any, any>): StateMachinePrivateNamespace {
 
 
 /**
+ * Error type shown when public and private events have overlapping names.
+ */
+type OverlapError<TPublic, TPrivate> = {
+  __error: 'Public and private events cannot share the same event names';
+  overlappingKeys: OverlappingKeys<TPublic, TPrivate>;
+};
+
+/**
  * A finite state machine with optional typed event payloads.
  *
  * @typeParam TPublicEvents - Map of public event names to their payload types
- * @typeParam TPrivateEvents - Map of private event names to their payload types
+ * @typeParam TPrivateEvents - Map of private event names to their payload types (must not overlap with TPublicEvents)
  *
  * @example
  * // Typed usage:
@@ -52,12 +61,23 @@ export default class StateMachine<
   TPublicEvents extends EventPayloadMap = DefaultEventPayloadMap,
   TPrivateEvents extends EventPayloadMap = DefaultEventPayloadMap
 > {
-  constructor({
-    // Allow active stateName to be written to external store.
-    writeActiveStateName = (stateName) => p(this).activeStateName = stateName,
-    // Allow active stateName to be read from external store.
-    readActiveStateName = () => p(this).activeStateName
-  }: StateMachineConfig = {} as StateMachineConfig) {
+  constructor(
+    // When there's overlap between public and private event names, require an error object
+    // that can't be satisfied, preventing instantiation.
+    // Exception: when using default/untyped maps (Record<string, any>), allow it.
+    ...args: OverlappingKeys<TPublicEvents, TPrivateEvents> extends never
+      ? [config?: StateMachineConfig]
+      // If keys are generic `string` (untyped usage), allow it
+      : string extends OverlappingKeys<TPublicEvents, TPrivateEvents>
+        ? [config?: StateMachineConfig]
+        : [error: OverlapError<TPublicEvents, TPrivateEvents>]
+  ) {
+    const {
+      // Allow active stateName to be written to external store.
+      writeActiveStateName = (stateName: StateName) => p(this).activeStateName = stateName,
+      // Allow active stateName to be read from external store.
+      readActiveStateName = () => p(this).activeStateName
+    } = (args[0] || {}) as StateMachineConfig;
     p(this).states = {};
 
     p(this).emitter = new EventEmitter();
@@ -103,7 +123,7 @@ export default class StateMachine<
    * const sm = new StateMachine<Events>();
    * sm.handle('login', { user: 'john' }); // OK
    * sm.handle('logout'); // OK, no payload needed
-   * sm.handle('login', { wrong: 'type' }); // Type error!
+   * sm.handle('login', { wrong: 'type' }); // Type error
    */
   handle<TEventName extends keyof TPublicEvents & string>(
     eventName: TEventName,

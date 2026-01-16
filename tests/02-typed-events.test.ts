@@ -172,7 +172,7 @@ describe('Typed Event Payloads', () => {
       expect(sm.getActiveStateName()).to.equal('stateB');
     });
 
-    it('should allow string event names even with typed state machine', async () => {
+    it('should reject unknown event names at compile time with typed state machine', async () => {
       const sm = new StateMachine<PublicEvents, PrivateEvents>();
 
       sm.addState('test', {});
@@ -180,8 +180,8 @@ describe('Typed Event Payloads', () => {
       await sm.init('test');
       await new Promise((resolve) => setTimeout(resolve, 5));
 
-      // String fallback should still work for events not in the type
-      // @ts-expect-error - unknownEvent is not in PublicEvents, but string fallback allows it at runtime
+      // @ts-expect-error - unknownEvent is not in PublicEvents, TypeScript rejects it
+      // (would work at runtime, but typed state machines enforce compile-time safety)
       sm.handle('unknownEvent', { any: 'payload' });
     });
   });
@@ -271,6 +271,35 @@ describe('Typed Event Payloads', () => {
           },
         },
       });
+    });
+
+    it('should reject overlapping public and private event names at compile time', () => {
+      // Define events where 'submit' exists in both public and private - this is NOT allowed
+      type OverlapPublicEvents = {
+        submit: { formData: string };
+        otherPublic: void;
+      };
+
+      type OverlapPrivateEvents = {
+        submit: { internalData: number };  // 'submit' overlaps with public!
+        otherPrivate: void;
+      };
+
+      // @ts-expect-error - Cannot create StateMachine with overlapping public/private event names
+      const _sm = new StateMachine<OverlapPublicEvents, OverlapPrivateEvents>();
+
+      // Non-overlapping event maps should work fine
+      type ValidPublicEvents = {
+        login: { username: string };
+      };
+
+      type ValidPrivateEvents = {
+        validate: { token: string };  // different name, no overlap
+      };
+
+      // This should compile without errors
+      const validSm = new StateMachine<ValidPublicEvents, ValidPrivateEvents>();
+      validSm.addState('test', {});
     });
   });
 });

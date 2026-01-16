@@ -6,7 +6,10 @@ export default StateMachine;
 export type {
   EventPayloadMap,
   DefaultEventPayloadMap,
-  TypedHandler,
+  OverlappingKeys,
+  AssertNoOverlap,
+  TypedPublicHandler,
+  TypedPrivateHandler,
   TypedHandlePrivate,
   TypedOnEnter,
   TypedHandlers,
